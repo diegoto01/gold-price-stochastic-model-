@@ -3,9 +3,5 @@ __pycache__/
 .DS_Store
 .ipynb_checkpoints/
 
-# datos crudos
-data/raw/*.xls
-data/raw/*.xlsx
-
 # entorno
 .env
