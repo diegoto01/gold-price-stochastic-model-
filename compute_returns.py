@@ -25,6 +25,3 @@ df = df.dropna(subset=["Return"])
 
 output_path = PROCESSED_DIR / "gold_returns.csv"
 df.to_csv(output_path, index=False)
-
-print(df.head())
-print(df.info())

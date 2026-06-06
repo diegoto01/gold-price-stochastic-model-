@@ -1,7 +1,19 @@
+# Large simulation outputs
+outputs/gbm_simulated_paths.csv
+outputs/*simulated_paths*.csv
+
+# Python cache
 __pycache__/
 *.pyc
-.DS_Store
-.ipynb_checkpoints/
 
-# entorno
-.env
+# macOS
+.DS_Store
+
+# LaTeX auxiliary files
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
