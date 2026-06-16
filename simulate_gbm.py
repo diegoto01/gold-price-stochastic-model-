@@ -12,10 +12,13 @@ import matplotlib.pyplot as plt
 BASE_DIR = Path(__file__).resolve().parent
 
 DATA_PATH = BASE_DIR / "data" / "processed" / "gold_returns.csv"
-PARAMS_PATH = BASE_DIR / "outputs" / "gbm_parameters.csv"
+PARAMS_PATH = BASE_DIR / "outputs" / "tables" / "01_statistics" / "gbm_parameters.csv"
 OUTPUT_DIR = BASE_DIR / "outputs"
+FIGURES_DIR = OUTPUT_DIR / "figures" / "02_gbm_simulation"
+TABLES_DIR = OUTPUT_DIR / "tables" / "02_gbm_simulation"
 
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+TABLES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ============================================================
@@ -168,7 +171,7 @@ def plot_monte_carlo_paths(paths: np.ndarray, n_to_plot: int = 100) -> None:
     plt.title("Trayectorias Monte Carlo del precio del oro mediante GBM")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR / "gbm_monte_carlo_paths.png", dpi=300)
+    plt.savefig(FIGURES_DIR / "gbm_monte_carlo_paths.png", dpi=300)
     plt.close()
 
 
@@ -193,7 +196,7 @@ def plot_mean_path(paths: np.ndarray) -> None:
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR / "gbm_mean_path_with_band.png", dpi=300)
+    plt.savefig(FIGURES_DIR / "gbm_mean_path_with_band.png", dpi=300)
     plt.close()
 
 
@@ -211,7 +214,7 @@ def plot_final_price_distribution(paths: np.ndarray) -> None:
     plt.title("Distribución de precios finales simulados mediante GBM")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR / "gbm_final_price_distribution.png", dpi=300)
+    plt.savefig(FIGURES_DIR / "gbm_final_price_distribution.png", dpi=300)
     plt.close()
 
 
@@ -285,7 +288,7 @@ def main() -> None:
         ]
     })
 
-    summary_output_path = OUTPUT_DIR / "gbm_simulation_summary.csv"
+    summary_output_path = TABLES_DIR / "gbm_simulation_summary.csv"
     summary.to_csv(summary_output_path, index=False)
 
     print("Simulación GBM completada.")
@@ -300,7 +303,7 @@ def main() -> None:
     print(f"Percentil 50% de precios finales: {np.percentile(final_prices, 50):.4f} [US$/ozt]")
     print(f"Percentil 95% de precios finales: {np.percentile(final_prices, 95):.4f} [US$/ozt]")
     print(f"Resumen de simulación guardado en: {summary_output_path}")
-    print(f"Gráficos guardados en: {OUTPUT_DIR}")
+    print(f"Gráficos guardados en: {FIGURES_DIR}")
 
 
 if __name__ == "__main__":

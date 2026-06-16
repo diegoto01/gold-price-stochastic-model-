@@ -12,8 +12,11 @@ BASE_DIR = Path(__file__).resolve().parent
 
 DATA_PATH = BASE_DIR / "data" / "processed" / "gold_returns.csv"
 OUTPUT_DIR = BASE_DIR / "outputs"
+FIGURES_DIR = OUTPUT_DIR / "figures" / "01_exploratory"
+TABLES_DIR = OUTPUT_DIR / "tables" / "01_statistics"
 
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+TABLES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ============================================================
@@ -115,7 +118,7 @@ def plot_price_series(df: pd.DataFrame) -> None:
     plt.title("Serie temporal del precio del oro en US$/ozt")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR / "price_series.png", dpi=300)
+    plt.savefig(FIGURES_DIR / "price_series.png", dpi=300)
     plt.close()
 
 
@@ -135,7 +138,7 @@ def plot_returns_series(df: pd.DataFrame) -> None:
     plt.title("Serie temporal de retornos logarítmicos diarios")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR / "log_returns_series.png", dpi=300)
+    plt.savefig(FIGURES_DIR / "log_returns_series.png", dpi=300)
     plt.close()
 
 
@@ -154,7 +157,7 @@ def plot_returns_histogram(returns: pd.Series) -> None:
     plt.title("Histograma de retornos logarítmicos diarios")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR / "log_returns_histogram.png", dpi=300)
+    plt.savefig(FIGURES_DIR / "log_returns_histogram.png", dpi=300)
     plt.close()
 
 
@@ -190,7 +193,7 @@ def plot_returns_normal_fit(returns: pd.Series) -> None:
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR / "log_returns_normal_fit.png", dpi=300)
+    plt.savefig(FIGURES_DIR / "log_returns_normal_fit.png", dpi=300)
     plt.close()
 
 
@@ -214,7 +217,7 @@ def plot_autocorrelation(returns: pd.Series, max_lag: int = 30) -> None:
     plt.title("Autocorrelación de retornos logarítmicos diarios")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR / "returns_autocorrelation.png", dpi=300)
+    plt.savefig(FIGURES_DIR / "returns_autocorrelation.png", dpi=300)
     plt.close()
 
 
@@ -231,7 +234,7 @@ def main() -> None:
     # ============================================================
 
     stats_df = compute_statistics(returns)
-    stats_path = OUTPUT_DIR / "returns_statistics.csv"
+    stats_path = TABLES_DIR / "returns_statistics.csv"
     stats_df.to_csv(stats_path)
 
     # ============================================================
@@ -261,7 +264,7 @@ def main() -> None:
         ]
     })
 
-    gbm_params_path = OUTPUT_DIR / "gbm_parameters.csv"
+    gbm_params_path = TABLES_DIR / "gbm_parameters.csv"
     gbm_params.to_csv(gbm_params_path, index=False)
 
     # ============================================================
@@ -289,7 +292,7 @@ def main() -> None:
     print(f"Máximo retorno: {returns.max():.8f}")
     print(f"Estadísticos guardados en: {stats_path}")
     print(f"Parámetros GBM guardados en: {gbm_params_path}")
-    print(f"Gráficos guardados en: {OUTPUT_DIR}")
+    print(f"Gráficos guardados en: {FIGURES_DIR}")
 
 
 if __name__ == "__main__":
