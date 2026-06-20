@@ -1,0 +1,628 @@
+# ============================================================
+# Pronóstico recursivo con XGBoost
+# Proyecto FIS205 - Modelamiento estocástico del precio del oro
+# ============================================================
+#
+# Este script compara Random Forest y XGBoost en modo recursivo.
+#
+# A diferencia de una predicción one-step, aquí el modelo parte desde
+# el precio inicial real del tramo de test y genera una trayectoria
+# completa hacia adelante usando sus propios retornos predichos.
+#
+# Esto permite una comparación más justa con GBM, ya que ambos modelos
+# generan una trayectoria libre desde una condición inicial.
+#
+# Modelos comparados:
+#
+#   1. Random Walk constante
+#   2. Random Forest recursivo desde 2009, 2018 y 2024
+#   3. XGBoost recursivo desde 2009, 2018 y 2024
+#
+# Advertencia:
+# Este análisis no corresponde a trading ni a predicción financiera real.
+# Es una comparación computacional de modelos generadores de trayectoria.
+
+
+from pathlib import Path
+from time import perf_counter
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from sklearn.ensemble import RandomForestRegressor
+
+from xgboost import XGBRegressor
+
+
+# ============================================================
+# Configuración general
+# ============================================================
+
+BASE_DIR = Path(__file__).resolve().parent
+
+DATA_PATH = BASE_DIR / "data" / "processed" / "gold_prices_clean.csv"
+
+FIGURES_DIR = BASE_DIR / "outputs" / "figures" / "04_ml_comparison"
+TABLES_DIR = BASE_DIR / "outputs" / "tables" / "04_ml_comparison"
+
+FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+TABLES_DIR.mkdir(parents=True, exist_ok=True)
+
+START_YEARS = [2009, 2018, 2024]
+TEST_SIZE = 252
+RANDOM_SEED = 42
+
+
+# ============================================================
+# Funciones auxiliares
+# ============================================================
+
+def print_step(message):
+    print()
+    print("=" * 72)
+    print(message)
+    print("=" * 72)
+
+
+def load_price_data(path):
+    """
+    Carga la serie limpia de precios del oro.
+    """
+
+    data = pd.read_csv(path)
+
+    date_candidates = ["Fecha", "fecha", "Date", "date"]
+    price_candidates = [
+        "Precio", "precio",
+        "Price", "price",
+        "Close", "close",
+        "Gold_Price", "gold_price",
+    ]
+
+    date_col = None
+    price_col = None
+
+    for col in date_candidates:
+        if col in data.columns:
+            date_col = col
+            break
+
+    for col in price_candidates:
+        if col in data.columns:
+            price_col = col
+            break
+
+    if date_col is None:
+        raise ValueError("No se encontró columna de fecha.")
+
+    if price_col is None:
+        raise ValueError("No se encontró columna de precio.")
+
+    data = data[[date_col, price_col]].copy()
+    data.columns = ["date", "price"]
+
+    data["date"] = pd.to_datetime(data["date"])
+    data["price"] = pd.to_numeric(data["price"], errors="coerce")
+
+    data = data.dropna()
+    data = data.sort_values("date").reset_index(drop=True)
+
+    return data
+
+
+def create_training_features(data):
+    """
+    Construye variables predictoras usando retornos logarítmicos pasados.
+    """
+
+    df = data.copy()
+
+    df["log_return"] = np.log(df["price"] / df["price"].shift(1))
+
+    for lag in range(1, 6):
+        df[f"return_lag_{lag}"] = df["log_return"].shift(lag)
+
+    df["return_mean_5"] = df["log_return"].rolling(window=5).mean()
+    df["return_mean_20"] = df["log_return"].rolling(window=20).mean()
+
+    df["return_std_5"] = df["log_return"].rolling(window=5).std()
+    df["return_std_20"] = df["log_return"].rolling(window=20).std()
+
+    df["return_sum_5"] = df["log_return"].rolling(window=5).sum()
+    df["return_sum_20"] = df["log_return"].rolling(window=20).sum()
+
+    df["target_return"] = df["log_return"].shift(-1)
+
+    df = df.dropna().reset_index(drop=True)
+
+    feature_cols = [
+        "return_lag_1",
+        "return_lag_2",
+        "return_lag_3",
+        "return_lag_4",
+        "return_lag_5",
+        "return_mean_5",
+        "return_mean_20",
+        "return_std_5",
+        "return_std_20",
+        "return_sum_5",
+        "return_sum_20",
+    ]
+
+    return df, feature_cols
+
+
+def build_feature_vector(recent_returns):
+    """
+    Construye un vector de características desde retornos recientes.
+
+    Durante la parte recursiva, esos retornos dejan de ser reales y pasan
+    a ser retornos predichos por el propio modelo.
+    """
+
+    recent_returns = np.array(recent_returns, dtype=float)
+
+    if len(recent_returns) < 20:
+        raise ValueError("Se necesitan al menos 20 retornos recientes.")
+
+    feature_values = {
+        "return_lag_1": recent_returns[-1],
+        "return_lag_2": recent_returns[-2],
+        "return_lag_3": recent_returns[-3],
+        "return_lag_4": recent_returns[-4],
+        "return_lag_5": recent_returns[-5],
+        "return_mean_5": np.mean(recent_returns[-5:]),
+        "return_mean_20": np.mean(recent_returns[-20:]),
+        "return_std_5": np.std(recent_returns[-5:], ddof=1),
+        "return_std_20": np.std(recent_returns[-20:], ddof=1),
+        "return_sum_5": np.sum(recent_returns[-5:]),
+        "return_sum_20": np.sum(recent_returns[-20:]),
+    }
+
+    return feature_values
+
+
+def train_random_forest(X_train, y_train):
+    """
+    Entrena Random Forest con hiperparámetros conservadores.
+    """
+
+    model = RandomForestRegressor(
+        n_estimators=300,
+        max_depth=5,
+        min_samples_leaf=10,
+        random_state=RANDOM_SEED,
+        n_jobs=-1,
+    )
+
+    model.fit(X_train, y_train)
+
+    return model
+
+
+def train_xgboost(X_train, y_train):
+    """
+    Entrena XGBoost con hiperparámetros moderados para evitar
+    sobreajuste excesivo.
+    """
+
+    model = XGBRegressor(
+        n_estimators=300,
+        max_depth=3,
+        learning_rate=0.03,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        objective="reg:squarederror",
+        eval_metric="rmse",
+        random_state=RANDOM_SEED,
+        n_jobs=-1,
+    )
+
+    model.fit(
+        X_train,
+        y_train,
+        eval_set=[(X_train, y_train)],
+        verbose=50,
+    )
+
+    return model
+
+
+def recursive_forecast(model, feature_cols, initial_returns, S0, n_steps):
+    """
+    Genera una trayectoria recursiva.
+
+    En cada paso:
+    - construye features con retornos recientes
+    - predice el siguiente retorno
+    - actualiza el precio
+    - agrega el retorno predicho a la historia
+    """
+
+    predicted_prices = [S0]
+    predicted_returns = []
+
+    recent_returns = list(initial_returns)
+    current_price = S0
+
+    for _ in range(n_steps):
+        feature_dict = build_feature_vector(recent_returns)
+        X_next = pd.DataFrame([feature_dict])[feature_cols]
+
+        r_pred = model.predict(X_next)[0]
+        next_price = current_price * np.exp(r_pred)
+
+        predicted_returns.append(r_pred)
+        predicted_prices.append(next_price)
+
+        recent_returns.append(r_pred)
+        current_price = next_price
+
+    return np.array(predicted_prices), np.array(predicted_returns)
+
+
+def compute_trajectory_metrics(real_prices, predicted_prices):
+    """
+    Calcula métricas de error para una trayectoria completa.
+    """
+
+    errors = predicted_prices - real_prices
+
+    mae = np.mean(np.abs(errors))
+    rmse = np.sqrt(np.mean(errors**2))
+    mape = np.mean(np.abs(errors / real_prices)) * 100
+
+    final_abs_error = np.abs(predicted_prices[-1] - real_prices[-1])
+    final_pct_error = final_abs_error / real_prices[-1] * 100
+
+    return {
+        "MAE": mae,
+        "RMSE": rmse,
+        "MAPE_percent": mape,
+        "final_absolute_error": final_abs_error,
+        "final_percentage_error": final_pct_error,
+    }
+
+
+# ============================================================
+# Programa principal
+# ============================================================
+
+def main():
+    total_start = perf_counter()
+
+    # --------------------------------------------------------
+    # 1. Cargar datos y separar test fijo
+    # --------------------------------------------------------
+
+    print_step("[1/7] Cargando datos y separando tramo de test...")
+
+    price_data = load_price_data(DATA_PATH)
+
+    if len(price_data) <= TEST_SIZE:
+        raise ValueError("La serie es demasiado corta para usar 252 días de test.")
+
+    train_full = price_data.iloc[:-TEST_SIZE].copy()
+    test_data = price_data.iloc[-TEST_SIZE:].copy()
+
+    test_dates = test_data["date"].to_numpy()
+    test_prices = test_data["price"].to_numpy()
+
+    test_start_date = test_data["date"].iloc[0]
+
+    S0 = test_prices[0]
+    n_steps = len(test_prices) - 1
+
+    print(f"Test fijo: últimos {TEST_SIZE} precios")
+    print(f"Fecha inicial test: {test_data['date'].iloc[0].date()}")
+    print(f"Fecha final test: {test_data['date'].iloc[-1].date()}")
+    print(f"Precio inicial S0: {S0:.4f} [US$/ozt]")
+
+    # --------------------------------------------------------
+    # 2. Baseline Random Walk constante
+    # --------------------------------------------------------
+
+    print_step("[2/7] Calculando Random Walk constante...")
+
+    rw_constant_path = np.full_like(test_prices, fill_value=S0, dtype=float)
+
+    results = [
+        {
+            "model": "Random_Walk_constant",
+            "start_year": "baseline",
+            "n_train_prices": len(train_full),
+            **compute_trajectory_metrics(test_prices, rw_constant_path),
+        }
+    ]
+
+    predicted_paths = {
+        "Random Walk constante": rw_constant_path,
+    }
+
+    # --------------------------------------------------------
+    # 3. Entrenar modelos por ventana y generar trayectorias
+    # --------------------------------------------------------
+
+    print_step("[3/7] Entrenando RF y XGBoost por ventanas históricas...")
+
+    for start_year in START_YEARS:
+        print()
+        print("-" * 72)
+        print(f"Ventana histórica desde {start_year}")
+        print("-" * 72)
+
+        train_window = train_full[train_full["date"].dt.year >= start_year].copy()
+
+        if len(train_window) < 120:
+            print(f"Ventana {start_year}: omitida por tener pocos datos.")
+            continue
+
+        ml_train, feature_cols = create_training_features(train_window)
+
+        if len(ml_train) < 100:
+            print(f"Ventana {start_year}: omitida por tener pocos datos útiles.")
+            continue
+
+        X_train = ml_train[feature_cols]
+        y_train = ml_train["target_return"]
+
+        print(f"Precios de entrenamiento: {len(train_window)}")
+        print(f"Muestras supervisadas: {len(ml_train)}")
+
+        history_for_initial = price_data[
+            (price_data["date"].dt.year >= start_year)
+            & (price_data["date"] <= test_start_date)
+        ].copy()
+
+        history_prices = history_for_initial["price"].to_numpy()
+        initial_returns = np.log(history_prices[1:] / history_prices[:-1])
+
+        if len(initial_returns) < 20:
+            print(f"Ventana {start_year}: omitida por retornos iniciales insuficientes.")
+            continue
+
+        # -------------------------
+        # Random Forest
+        # -------------------------
+
+        print("Entrenando Random Forest...")
+        t0 = perf_counter()
+
+        rf_model = train_random_forest(X_train, y_train)
+
+        print(f"Random Forest terminado en {perf_counter() - t0:.2f} segundos.")
+
+        print("Generando trayectoria recursiva RF...")
+        rf_path, rf_returns = recursive_forecast(
+            model=rf_model,
+            feature_cols=feature_cols,
+            initial_returns=initial_returns,
+            S0=S0,
+            n_steps=n_steps,
+        )
+
+        predicted_paths[f"RF recursivo desde {start_year}"] = rf_path
+
+        rf_metrics = compute_trajectory_metrics(test_prices, rf_path)
+
+        results.append(
+            {
+                "model": "Random_Forest_recursive",
+                "start_year": start_year,
+                "n_train_prices": len(train_window),
+                "n_train_samples": len(ml_train),
+                "train_start_date": train_window["date"].iloc[0].date(),
+                "train_end_date": train_window["date"].iloc[-1].date(),
+                **rf_metrics,
+            }
+        )
+
+        # -------------------------
+        # XGBoost
+        # -------------------------
+
+        print("Entrenando XGBoost...")
+        print("Progreso interno mostrado cada 50 árboles.")
+        t0 = perf_counter()
+
+        xgb_model = train_xgboost(X_train, y_train)
+
+        print(f"XGBoost terminado en {perf_counter() - t0:.2f} segundos.")
+
+        print("Generando trayectoria recursiva XGBoost...")
+        xgb_path, xgb_returns = recursive_forecast(
+            model=xgb_model,
+            feature_cols=feature_cols,
+            initial_returns=initial_returns,
+            S0=S0,
+            n_steps=n_steps,
+        )
+
+        predicted_paths[f"XGBoost recursivo desde {start_year}"] = xgb_path
+
+        xgb_metrics = compute_trajectory_metrics(test_prices, xgb_path)
+
+        results.append(
+            {
+                "model": "XGBoost_recursive",
+                "start_year": start_year,
+                "n_train_prices": len(train_window),
+                "n_train_samples": len(ml_train),
+                "train_start_date": train_window["date"].iloc[0].date(),
+                "train_end_date": train_window["date"].iloc[-1].date(),
+                **xgb_metrics,
+            }
+        )
+
+    results_df = pd.DataFrame(results)
+
+    # --------------------------------------------------------
+    # 4. Guardar tablas
+    # --------------------------------------------------------
+
+    print_step("[4/7] Guardando tablas...")
+
+    metrics_path = TABLES_DIR / "xgboost_recursive_forecast_metrics.csv"
+    results_df.to_csv(metrics_path, index=False)
+
+    paths_df = pd.DataFrame(
+        {
+            "date": test_dates,
+            "real_price": test_prices,
+        }
+    )
+
+    for label, path in predicted_paths.items():
+        clean_label = (
+            label.lower()
+            .replace(" ", "_")
+            .replace("á", "a")
+            .replace("é", "e")
+            .replace("í", "i")
+            .replace("ó", "o")
+            .replace("ú", "u")
+        )
+        paths_df[clean_label] = path
+
+    paths_path = TABLES_DIR / "xgboost_recursive_forecast_paths.csv"
+    paths_df.to_csv(paths_path, index=False)
+
+    # --------------------------------------------------------
+    # 5. Gráfico comparativo de trayectorias
+    # --------------------------------------------------------
+
+    print_step("[5/7] Generando gráfico de trayectorias...")
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    ax.plot(
+        test_dates,
+        test_prices,
+        label="Precio real",
+        linewidth=2.6,
+    )
+
+    ax.plot(
+        test_dates,
+        rw_constant_path,
+        label="Random Walk constante",
+        linewidth=2.0,
+        linestyle=":",
+    )
+
+    rf_styles = {
+        2009: "--",
+        2018: "-.",
+        2024: (0, (5, 2)),
+    }
+
+    xgb_styles = {
+        2009: (0, (1, 1)),
+        2018: (0, (3, 1, 1, 1)),
+        2024: "-",
+    }
+
+    for start_year in START_YEARS:
+        rf_label = f"RF recursivo desde {start_year}"
+        if rf_label in predicted_paths:
+            ax.plot(
+                test_dates,
+                predicted_paths[rf_label],
+                label=rf_label,
+                linewidth=1.8,
+                linestyle=rf_styles.get(start_year, "--"),
+            )
+
+    for start_year in START_YEARS:
+        xgb_label = f"XGBoost recursivo desde {start_year}"
+        if xgb_label in predicted_paths:
+            ax.plot(
+                test_dates,
+                predicted_paths[xgb_label],
+                label=xgb_label,
+                linewidth=1.8,
+                linestyle=xgb_styles.get(start_year, "-"),
+            )
+
+    ax.set_title("Pronóstico recursivo: Random Forest vs XGBoost")
+    ax.set_xlabel("Fecha")
+    ax.set_ylabel("Precio del oro [US$/ozt]")
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=8)
+
+    fig.autofmt_xdate()
+    plt.tight_layout()
+
+    figure_path = FIGURES_DIR / "xgboost_recursive_forecast_price.png"
+    plt.savefig(figure_path, dpi=300)
+    plt.close()
+
+    # --------------------------------------------------------
+    # 6. Gráfico de MAPE
+    # --------------------------------------------------------
+
+    print_step("[6/7] Generando gráfico de MAPE...")
+
+    comparison_df = results_df[
+        results_df["model"].isin(["Random_Forest_recursive", "XGBoost_recursive"])
+    ].copy()
+
+    comparison_df["label"] = (
+        comparison_df["model"].str.replace("_recursive", "", regex=False)
+        + " "
+        + comparison_df["start_year"].astype(str)
+    )
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    ax.bar(
+        comparison_df["label"],
+        comparison_df["MAPE_percent"],
+    )
+
+    ax.set_title("MAPE recursivo según modelo y ventana histórica")
+    ax.set_xlabel("Modelo y ventana")
+    ax.set_ylabel("MAPE [%]")
+    ax.grid(True, axis="y", alpha=0.3)
+
+    plt.xticks(rotation=35, ha="right")
+    plt.tight_layout()
+
+    error_figure_path = FIGURES_DIR / "xgboost_recursive_forecast_mape.png"
+    plt.savefig(error_figure_path, dpi=300)
+    plt.close()
+
+    # --------------------------------------------------------
+    # 7. Resumen final
+    # --------------------------------------------------------
+
+    print_step("[7/7] Resumen final")
+
+    print("Pronóstico recursivo con Random Forest y XGBoost completado.")
+    print()
+    print("Métricas de trayectoria:")
+    print(
+        results_df[
+            [
+                "model",
+                "start_year",
+                "n_train_prices",
+                "MAE",
+                "RMSE",
+                "MAPE_percent",
+                "final_percentage_error",
+            ]
+        ].to_string(index=False)
+    )
+    print()
+    print(f"Métricas guardadas en: {metrics_path}")
+    print(f"Trayectorias guardadas en: {paths_path}")
+    print(f"Gráfico trayectorias guardado en: {figure_path}")
+    print(f"Gráfico MAPE guardado en: {error_figure_path}")
+    print()
+    print(f"Tiempo total: {perf_counter() - total_start:.2f} segundos.")
+
+
+if __name__ == "__main__":
+    main()
