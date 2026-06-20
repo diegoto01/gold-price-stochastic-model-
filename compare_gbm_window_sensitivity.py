@@ -1,45 +1,16 @@
-# ============================================================
-# Sensibilidad temporal del GBM
-# Proyecto FIS205 - Modelamiento estocástico del precio del oro
-# ============================================================
-#
-# Este script estudia cómo cambia el desempeño del modelo GBM
-# cuando se calibra usando distintas ventanas históricas.
-#
-# La motivación física/estadística es que la serie del precio del oro
-# puede no ser estacionaria: distintos periodos históricos pueden tener
-# diferentes tendencias y volatilidades.
-#
-# Se comparan tres ventanas de calibración:
-#
-#   1. Desde 2009 hasta el inicio del test
-#   2. Desde 2018 hasta el inicio del test
-#   3. Desde 2024 hasta el inicio del test
-#
-# El tramo de test se mantiene fijo:
-#
-#   Test = últimos 252 días disponibles
-#
-# Esto permite comparar si usar más o menos memoria histórica cambia
-# la capacidad del GBM para representar el régimen reciente del precio
-# del oro.
-#
-# Importante:
-# Esto no corresponde a una estrategia de inversión ni a un modelo de
-# predicción financiera, sino a un análisis de sensibilidad de parámetros
-# dentro de un modelo estocástico.
+"""
+Sensibilidad temporal del GBM.
 
-
+Se calibra el modelo con distintas ventanas históricas y se compara su
+trayectoria media sobre el mismo tramo de validación. La comparación
+permite observar el efecto de la ventana de calibración sobre mu y sigma.
+"""
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-
-# ============================================================
-# Configuración general
-# ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -64,10 +35,6 @@ N_PATHS = 100_000
 # Semilla para reproducibilidad
 RANDOM_SEED = 42
 
-
-# ============================================================
-# Funciones auxiliares
-# ============================================================
 
 def load_price_data(path):
     """
@@ -192,23 +159,15 @@ def compute_metrics(real_values, predicted_values):
     }
 
 
-# ============================================================
-# Programa principal
-# ============================================================
-
 def main():
-    # --------------------------------------------------------
-    # 1. Cargar datos
-    # --------------------------------------------------------
+    # Datos
 
     data = load_price_data(DATA_PATH)
 
     if len(data) <= TEST_SIZE:
         raise ValueError("La serie es demasiado corta para usar 252 días de test.")
 
-    # --------------------------------------------------------
-    # 2. Separar test fijo
-    # --------------------------------------------------------
+    # Tramo de validación
 
     train_full = data.iloc[:-TEST_SIZE].copy()
     test_data = data.iloc[-TEST_SIZE:].copy()
@@ -219,9 +178,7 @@ def main():
     S0 = test_prices[0]
     n_steps = TEST_SIZE - 1
 
-    # --------------------------------------------------------
-    # 3. Simular GBM para cada ventana histórica
-    # --------------------------------------------------------
+    # Simulación por ventanas
 
     results = []
     mean_paths = {}
@@ -268,16 +225,12 @@ def main():
 
     results_df = pd.DataFrame(results)
 
-    # --------------------------------------------------------
-    # 4. Guardar tabla de métricas
-    # --------------------------------------------------------
+    # Guardar métricas
 
     metrics_path = TABLES_DIR / "gbm_window_sensitivity_metrics.csv"
     results_df.to_csv(metrics_path, index=False)
 
-    # --------------------------------------------------------
-    # 5. Graficar trayectorias medias
-    # --------------------------------------------------------
+    # Gráfico de trayectorias
 
     fig, ax = plt.subplots(figsize=(11, 6))
 
@@ -310,9 +263,7 @@ def main():
     plt.savefig(figure_path, dpi=300)
     plt.close()
 
-    # --------------------------------------------------------
-    # 6. Mostrar resumen
-    # --------------------------------------------------------
+    # Resumen final
 
     print("Sensibilidad temporal del GBM completada.")
     print()

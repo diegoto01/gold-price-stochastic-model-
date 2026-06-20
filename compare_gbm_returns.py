@@ -19,9 +19,6 @@ N_PATHS = 100_000
 RANDOM_SEED = 42
 
 
-# -----------------------------
-# Funciones auxiliares
-# -----------------------------
 
 def find_date_column(df: pd.DataFrame) -> str:
     """
@@ -352,12 +349,9 @@ def plot_cumulative_returns(
     plt.close()
 
 
-# -----------------------------
-# Programa principal
-# -----------------------------
 
 def main() -> None:
-    # Cargar datos
+    # Datos
     df = load_price_data(DATA_PATH)
 
     if len(df) <= TEST_DAYS:
@@ -365,16 +359,16 @@ def main() -> None:
             f"La serie tiene {len(df)} datos, pero se requieren más de {TEST_DAYS}."
         )
 
-    # Separar calibración y test
+    # Calibración y validación
     calibration_df = df.iloc[:-TEST_DAYS].copy()
     test_df = df.iloc[-TEST_DAYS:].copy()
 
-    # Retornos de calibración para estimar parámetros
+    # Retornos de calibración
     calibration_returns = compute_log_returns(calibration_df["price"])
 
     mu_daily, sigma_daily = estimate_gbm_parameters(calibration_returns)
 
-    # Simulación GBM sobre el tramo test
+    # Simulación GBM
     s0 = test_df["price"].iloc[0]
     n_steps = len(test_df) - 1
 
@@ -387,13 +381,13 @@ def main() -> None:
         random_seed=RANDOM_SEED,
     )
 
-    # Retornos reales del tramo test
+    # Retornos reales
     real_returns = compute_log_returns(test_df["price"]).to_numpy()
 
-    # Retornos simulados GBM
+    # Retornos simulados
     simulated_returns = compute_simulated_returns(paths)
 
-    # Retorno medio simulado por día
+    # Retorno medio simulado
     simulated_returns_by_day = np.log(paths[:, 1:] / paths[:, :-1])
     simulated_mean_returns = simulated_returns_by_day.mean(axis=0)
 
@@ -401,7 +395,7 @@ def main() -> None:
     real_stats = calculate_distribution_statistics(real_returns)
     simulated_stats = calculate_distribution_statistics(simulated_returns)
 
-    # Agregar información de calibración
+    # Información de calibración
     real_stats_extended = {
         "n_observations": len(real_returns),
         "mu_daily_calibrated": mu_daily,
@@ -449,7 +443,7 @@ def main() -> None:
         output_path=cumulative_plot_path,
     )
 
-    # Imprimir resumen
+    # Resumen final
     print("Comparación de retornos reales vs retornos GBM completada.")
     print(f"Datos de calibración: {len(calibration_df)} precios")
     print(f"Datos de test: {len(test_df)} precios")

@@ -19,9 +19,6 @@ N_PATHS = 100_000
 RANDOM_SEED = 42
 
 
-# -----------------------------
-# Funciones auxiliares
-# -----------------------------
 
 def find_date_column(df: pd.DataFrame) -> str:
     """
@@ -284,12 +281,9 @@ def plot_final_price_distribution(
     plt.close()
 
 
-# -----------------------------
-# Programa principal
-# -----------------------------
 
 def main() -> None:
-    # Cargar precios históricos
+    # Datos
     df = load_price_data(DATA_PATH)
 
     if len(df) <= TEST_DAYS:
@@ -297,17 +291,17 @@ def main() -> None:
             f"La serie tiene {len(df)} datos, pero se requieren más de {TEST_DAYS}."
         )
 
-    # Separar datos de calibración y test
+    # Calibración y validación
     calibration_df = df.iloc[:-TEST_DAYS].copy()
     test_df = df.iloc[-TEST_DAYS:].copy()
 
-    # Calcular retornos solo con datos de calibración
+    # Retornos de calibración
     calibration_returns = compute_log_returns(calibration_df["price"])
 
-    # Estimar parámetros GBM desde calibración
+    # Parámetros del GBM
     mu_daily, sigma_daily = estimate_gbm_parameters(calibration_returns)
 
-    # Definir simulación
+    # Simulación
     s0 = test_df["price"].iloc[0]
     n_steps = len(test_df) - 1
 
@@ -320,7 +314,7 @@ def main() -> None:
         random_seed=RANDOM_SEED,
     )
 
-    # Estadísticos de las trayectorias simuladas
+    # Estadísticos simulados
     mean_simulated = paths.mean(axis=0)
     p5 = np.percentile(paths, 5, axis=0)
     p95 = np.percentile(paths, 95, axis=0)
@@ -336,7 +330,7 @@ def main() -> None:
         p95=p95,
     )
 
-    # Agregar información general a las métricas
+    # Información de calibración
     extra_info = {
         "n_calibration_prices": len(calibration_df),
         "n_test_prices": len(test_df),
@@ -351,7 +345,7 @@ def main() -> None:
 
     all_metrics = {**extra_info, **metrics}
 
-    # Guardar outputs
+    # Guardar resultados
     metrics_path = TABLES_DIR / "gbm_real_comparison_metrics.csv"
     plot_path = FIGURES_DIR / "gbm_vs_real_price.png"
     distribution_path = FIGURES_DIR / "gbm_vs_real_final_distribution.png"
@@ -373,7 +367,7 @@ def main() -> None:
         output_path=distribution_path,
     )
 
-    # Resumen en terminal
+    # Resumen final
     print("Comparación GBM vs datos reales completada.")
     print(f"Datos de calibración: {len(calibration_df)} observaciones")
     print(f"Datos de test: {len(test_df)} observaciones")

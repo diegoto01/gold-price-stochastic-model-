@@ -1,29 +1,9 @@
-# ============================================================
-# Sensibilidad temporal del modelo Random Forest
-# Proyecto FIS205 - Modelamiento estocástico del precio del oro
-# ============================================================
-#
-# Este script estudia cómo cambia el desempeño del modelo Random Forest
-# cuando se entrena con distintas ventanas históricas.
-#
-# Se comparan tres ventanas:
-#
-#   1. Datos desde 2009 hasta el inicio del test
-#   2. Datos desde 2018 hasta el inicio del test
-#   3. Datos desde 2024 hasta el inicio del test
-#
-# El tramo de test se mantiene fijo:
-#
-#   Test = últimas 252 observaciones disponibles
-#
-# Esto permite comparar si el aprendizaje supervisado también es sensible
-# a la cantidad de memoria histórica usada durante el entrenamiento.
-#
-# Importante:
-# Este análisis es una extensión exploratoria. No busca construir una
-# estrategia de trading ni afirmar predicción financiera fuerte.
+"""
+Sensibilidad temporal del modelo Random Forest.
 
-
+Se entrena el mismo modelo con distintas ventanas históricas y se evalúa
+sobre un tramo de validación fijo usando predicción one-step.
+"""
 from pathlib import Path
 
 import numpy as np
@@ -33,10 +13,6 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-
-# ============================================================
-# Configuración general
-# ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -52,10 +28,6 @@ START_YEARS = [2009, 2018, 2024]
 TEST_SIZE = 252
 RANDOM_SEED = 42
 
-
-# ============================================================
-# Funciones auxiliares
-# ============================================================
 
 def load_price_data(path):
     """
@@ -201,14 +173,8 @@ def train_random_forest(X_train, y_train):
     return model
 
 
-# ============================================================
-# Programa principal
-# ============================================================
-
 def main():
-    # --------------------------------------------------------
-    # 1. Cargar datos y construir features
-    # --------------------------------------------------------
+    # Datos y variables
 
     price_data = load_price_data(DATA_PATH)
     ml_data, feature_cols = create_features(price_data)
@@ -216,9 +182,7 @@ def main():
     if len(ml_data) <= TEST_SIZE:
         raise ValueError("No hay suficientes datos para separar 252 observaciones de test.")
 
-    # --------------------------------------------------------
-    # 2. Separar test fijo
-    # --------------------------------------------------------
+    # Tramo de validación
 
     train_full = ml_data.iloc[:-TEST_SIZE].copy()
     test_data = ml_data.iloc[-TEST_SIZE:].copy()
@@ -231,9 +195,7 @@ def main():
     previous_real_prices = test_data["price"].to_numpy()
     real_next_prices = previous_real_prices * np.exp(y_test)
 
-    # --------------------------------------------------------
-    # 3. Random Walk one-step como baseline común
-    # --------------------------------------------------------
+    # Random Walk one-step
 
     rw_pred_returns = np.zeros_like(y_test)
     rw_pred_prices = reconstruct_one_step_prices(previous_real_prices, rw_pred_returns)
@@ -261,9 +223,7 @@ def main():
 
     feature_importances = []
 
-    # --------------------------------------------------------
-    # 4. Entrenar Random Forest para cada ventana histórica
-    # --------------------------------------------------------
+    # Entrenamiento por ventanas
 
     for start_year in START_YEARS:
         train_window = train_full[train_full["date"].dt.year >= start_year].copy()
@@ -312,9 +272,7 @@ def main():
     results_df = pd.DataFrame(results)
     importance_df = pd.DataFrame(feature_importances)
 
-    # --------------------------------------------------------
-    # 5. Guardar tablas
-    # --------------------------------------------------------
+    # Guardar resultados
 
     metrics_path = TABLES_DIR / "ml_window_sensitivity_metrics.csv"
     importance_path = TABLES_DIR / "ml_window_sensitivity_feature_importance.csv"
@@ -322,9 +280,7 @@ def main():
     results_df.to_csv(metrics_path, index=False)
     importance_df.to_csv(importance_path, index=False)
 
-    # --------------------------------------------------------
-    # 6. Gráfico de precios one-step por ventana
-    # --------------------------------------------------------
+    # Gráfico de precios
 
     fig, ax = plt.subplots(figsize=(11, 6))
 
@@ -373,9 +329,7 @@ def main():
     plt.savefig(price_figure_path, dpi=300)
     plt.close()
 
-    # --------------------------------------------------------
-    # 7. Gráfico de métricas principales
-    # --------------------------------------------------------
+    # Gráfico de error
 
     rf_only = results_df[results_df["model"] == "Random_Forest"].copy()
 
@@ -397,9 +351,7 @@ def main():
     plt.savefig(error_figure_path, dpi=300)
     plt.close()
 
-    # --------------------------------------------------------
-    # 8. Resumen en terminal
-    # --------------------------------------------------------
+    # Resumen final
 
     print("Sensibilidad temporal del Random Forest completada.")
     print()

@@ -1,27 +1,9 @@
-# ============================================================
-# Pronóstico recursivo con Random Forest
-# Proyecto FIS205 - Modelamiento estocástico del precio del oro
-# ============================================================
-#
-# Este script construye una trayectoria libre usando Random Forest.
-#
-# A diferencia del enfoque one-step, aquí el modelo no usa el precio real
-# del día anterior durante todo el test. En cambio:
-#
-#   1. Parte desde el precio inicial real S0 del tramo de test.
-#   2. Predice el retorno del día siguiente.
-#   3. Construye el precio predicho.
-#   4. Usa sus propios retornos predichos para seguir avanzando.
-#
-# Esto permite comparar visualmente el comportamiento del Random Forest
-# con el GBM, ya que ambos generan una trayectoria hacia adelante desde
-# una condición inicial.
-#
-# Advertencia metodológica:
-# Este enfoque acumula errores y debe interpretarse como un experimento
-# de trayectoria, no como una predicción financiera real.
+"""
+Pronóstico recursivo con Random Forest.
 
-
+El modelo parte desde el precio inicial del tramo de validación y
+genera una trayectoria completa usando sus propios retornos predichos.
+"""
 from pathlib import Path
 
 import numpy as np
@@ -30,10 +12,6 @@ import matplotlib.pyplot as plt
 
 from sklearn.ensemble import RandomForestRegressor
 
-
-# ============================================================
-# Configuración general
-# ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -49,10 +27,6 @@ START_YEARS = [2009, 2018, 2024]
 TEST_SIZE = 252
 RANDOM_SEED = 42
 
-
-# ============================================================
-# Funciones auxiliares
-# ============================================================
 
 def load_price_data(path):
     """
@@ -257,14 +231,8 @@ def compute_trajectory_metrics(real_prices, predicted_prices):
     }
 
 
-# ============================================================
-# Programa principal
-# ============================================================
-
 def main():
-    # --------------------------------------------------------
-    # 1. Cargar datos y definir test fijo
-    # --------------------------------------------------------
+    # Datos y tramo de validación
 
     price_data = load_price_data(DATA_PATH)
 
@@ -282,9 +250,7 @@ def main():
     S0 = test_prices[0]
     n_steps = len(test_prices) - 1
 
-    # --------------------------------------------------------
-    # 2. Baseline: Random Walk constante
-    # --------------------------------------------------------
+    # Random Walk constante
 
     rw_constant_path = np.full_like(test_prices, fill_value=S0, dtype=float)
 
@@ -301,9 +267,7 @@ def main():
         "Random Walk constante": rw_constant_path,
     }
 
-    # --------------------------------------------------------
-    # 3. Entrenar y proyectar RF recursivo por ventana
-    # --------------------------------------------------------
+    # Entrenamiento por ventanas
 
     for start_year in START_YEARS:
         train_window = train_full[train_full["date"].dt.year >= start_year].copy()
@@ -363,16 +327,12 @@ def main():
 
     results_df = pd.DataFrame(results)
 
-    # --------------------------------------------------------
-    # 4. Guardar tabla de métricas
-    # --------------------------------------------------------
+    # Guardar métricas
 
     metrics_path = TABLES_DIR / "ml_recursive_forecast_metrics.csv"
     results_df.to_csv(metrics_path, index=False)
 
-    # --------------------------------------------------------
-    # 5. Guardar trayectorias predichas
-    # --------------------------------------------------------
+    # Guardar trayectorias
 
     paths_df = pd.DataFrame(
         {
@@ -396,9 +356,7 @@ def main():
     paths_path = TABLES_DIR / "ml_recursive_forecast_paths.csv"
     paths_df.to_csv(paths_path, index=False)
 
-    # --------------------------------------------------------
-    # 6. Gráfico comparativo de trayectorias
-    # --------------------------------------------------------
+    # Gráfico de trayectorias
 
     fig, ax = plt.subplots(figsize=(11, 6))
 
@@ -447,9 +405,7 @@ def main():
     plt.savefig(figure_path, dpi=300)
     plt.close()
 
-    # --------------------------------------------------------
-    # 7. Gráfico de errores MAPE
-    # --------------------------------------------------------
+    # Gráfico de error
 
     rf_only = results_df[results_df["model"] == "Random_Forest_recursive"].copy()
 
@@ -471,9 +427,7 @@ def main():
     plt.savefig(error_figure_path, dpi=300)
     plt.close()
 
-    # --------------------------------------------------------
-    # 8. Mostrar resumen
-    # --------------------------------------------------------
+    # Resumen final
 
     print("Pronóstico recursivo con Random Forest completado.")
     print()

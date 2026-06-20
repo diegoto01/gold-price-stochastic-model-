@@ -4,9 +4,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-# ============================================================
-# 1.- ABRIMOS LAS RUTAS DEL PROYECTO
-# ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -19,9 +16,6 @@ FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 TABLES_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# ============================================================
-# 2.- CARGA Y VALIDACIÓN DE DATOS
-# ============================================================
 
 def load_data(path: Path) -> pd.DataFrame:
     """
@@ -66,9 +60,6 @@ def load_data(path: Path) -> pd.DataFrame:
     return df
 
 
-# ============================================================
-# 3.- ESTADÍSTICA DESCRIPTIVA
-# ============================================================
 
 def compute_statistics(returns: pd.Series) -> pd.DataFrame:
     """
@@ -86,22 +77,19 @@ def compute_statistics(returns: pd.Series) -> pd.DataFrame:
     """
 
     stats = {
-        "n": returns.count(),            # número de retornos válidos
-        "mean": returns.mean(),          # media empírica de los retornos
-        "variance": returns.var(),       # varianza muestral
-        "std": returns.std(),            # desviación estándar muestral
-        "skewness": returns.skew(),      # asimetría de la distribución
-        "kurtosis": returns.kurtosis(),  # exceso de curtosis
-        "min": returns.min(),            # retorno mínimo observado
-        "max": returns.max(),            # retorno máximo observado
+        "n": returns.count(),
+        "mean": returns.mean(),
+        "variance": returns.var(),
+        "std": returns.std(),
+        "skewness": returns.skew(),
+        "kurtosis": returns.kurtosis(),
+        "min": returns.min(),
+        "max": returns.max(),
     }
 
     return pd.DataFrame.from_dict(stats, orient="index", columns=["value"])
 
 
-# ============================================================
-# 4.- VISUALIZACIONES
-# ============================================================
 
 def plot_price_series(df: pd.DataFrame) -> None:
     """
@@ -221,29 +209,21 @@ def plot_autocorrelation(returns: pd.Series, max_lag: int = 30) -> None:
     plt.close()
 
 
-# ============================================================
-# 5.- EJECUCIÓN PRINCIPAL
-# ============================================================
 
 def main() -> None:
     df = load_data(DATA_PATH)
     returns = df["log_return"]
 
-    # ============================================================
-    # Estadísticos descriptivos de los retornos
-    # ============================================================
+    # Estadísticos descriptivos
 
     stats_df = compute_statistics(returns)
     stats_path = TABLES_DIR / "returns_statistics.csv"
     stats_df.to_csv(stats_path)
 
-    # ============================================================
-    # Parámetros preliminares para el modelo GBM
-    # ============================================================
+    # Parámetros GBM
 
     # Se utiliza una anualización estándar de 252 días hábiles.
     # Esta anualización se usa solo como escala comparativa, no como
-    # predicción financiera.
     trading_days = 252
 
     mu_daily = returns.mean() + 0.5 * returns.var()
@@ -267,9 +247,7 @@ def main() -> None:
     gbm_params_path = TABLES_DIR / "gbm_parameters.csv"
     gbm_params.to_csv(gbm_params_path, index=False)
 
-    # ============================================================
-    # Generación de gráficos
-    # ============================================================
+    # Gráficos
 
     plot_price_series(df)
     plot_returns_series(df)
@@ -277,9 +255,7 @@ def main() -> None:
     plot_returns_normal_fit(returns)
     plot_autocorrelation(returns)
 
-    # ============================================================
-    # Mensajes de salida
-    # ============================================================
+    # Resumen final
 
     print("Análisis estadístico de retornos completado.")
     print(f"Número de datos analizados: {len(df)}")

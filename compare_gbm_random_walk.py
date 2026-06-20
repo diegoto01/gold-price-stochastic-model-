@@ -1,38 +1,16 @@
-# ============================================================
-# Comparación entre GBM y Random Walk
-# Proyecto FIS205 - Modelamiento estocástico del precio del oro
-# ============================================================
-#
-# Este script compara el modelo de Movimiento Browniano Geométrico
-# con un modelo base ingenuo tipo Random Walk.
-#
-# La idea central es evaluar si el GBM entrega una mejora cuantitativa
-# frente a una referencia mínima. En este caso, el Random Walk usado
-# como baseline mantiene constante el precio inicial del tramo de test:
-#
-#     S_hat(t) = S0
-#
-# Este baseline no intenta predecir tendencias ni fluctuaciones; solo
-# sirve como punto de comparación simple. Si el GBM no mejora claramente
-# frente a este modelo, entonces sus limitaciones deben discutirse en
-# el análisis del proyecto.
-#
-# Importante:
-# Este análisis no se interpreta como una estrategia de inversión ni
-# como una predicción financiera, sino como una comparación entre modelos
-# estocásticos desde una perspectiva de física computacional.
+"""
+Comparación entre GBM y Random Walk.
 
-
+El GBM se evalúa frente a un baseline que mantiene constante el precio
+inicial del tramo de validación. La comparación sirve como referencia
+mínima para interpretar el error del modelo estocástico.
+"""
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-
-# ============================================================
-# Configuración general
-# ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -44,10 +22,6 @@ TABLES_DIR = BASE_DIR / "outputs" / "tables" / "03_gbm_validation"
 FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 TABLES_DIR.mkdir(parents=True, exist_ok=True)
 
-
-# ============================================================
-# Funciones auxiliares
-# ============================================================
 
 def load_price_data(path):
     """
@@ -176,9 +150,7 @@ def compute_metrics(real_values, predicted_values):
 
 
 def main():
-    # --------------------------------------------------------
-    # 1. Cargar datos y separar entrenamiento/test
-    # --------------------------------------------------------
+    # Datos y separación temporal
 
     data = load_price_data(DATA_PATH)
 
@@ -196,18 +168,14 @@ def main():
 
     S0 = test_prices[0]
 
-    # --------------------------------------------------------
-    # 2. Calibrar GBM usando solo el tramo de entrenamiento
-    # --------------------------------------------------------
+    # Calibración del GBM
 
     mu_daily, sigma_daily = estimate_gbm_parameters(train_prices)
 
     mu_annualized = mu_daily * 252
     sigma_annualized = sigma_daily * np.sqrt(252)
 
-    # --------------------------------------------------------
-    # 3. Simular GBM en el horizonte de test
-    # --------------------------------------------------------
+    # Simulación GBM
 
     n_steps = test_size - 1
     n_paths = 100_000
@@ -224,15 +192,11 @@ def main():
 
     gbm_mean_path = gbm_paths.mean(axis=1)
 
-    # --------------------------------------------------------
-    # 4. Construir baseline Random Walk constante
-    # --------------------------------------------------------
+    # Random Walk constante
 
     random_walk_constant = np.full_like(test_prices, fill_value=S0, dtype=float)
 
-    # --------------------------------------------------------
-    # 5. Calcular métricas
-    # --------------------------------------------------------
+    # Métricas
 
     metrics_gbm = compute_metrics(test_prices, gbm_mean_path)
     metrics_rw = compute_metrics(test_prices, random_walk_constant)
@@ -247,9 +211,7 @@ def main():
     metrics_path = TABLES_DIR / "gbm_random_walk_metrics.csv"
     metrics_df.to_csv(metrics_path, index=False)
 
-    # --------------------------------------------------------
-    # 6. Graficar comparación
-    # --------------------------------------------------------
+    # Gráfico comparativo
 
     fig, ax = plt.subplots(figsize=(11, 6))
 
@@ -276,9 +238,7 @@ def main():
     plt.savefig(figure_path, dpi=300)
     plt.close()
 
-    # --------------------------------------------------------
-    # 7. Mostrar resumen en terminal
-    # --------------------------------------------------------
+    # Resumen final
 
     print("Comparación GBM vs Random Walk completada.")
     print(f"Datos de entrenamiento: {len(train_prices)} precios")

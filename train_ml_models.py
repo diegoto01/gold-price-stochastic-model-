@@ -1,29 +1,10 @@
-# ============================================================
-# Comparación ML base: Random Forest vs modelos simples
-# Proyecto FIS205 - Modelamiento estocástico del precio del oro
-# ============================================================
-#
-# Este script agrega una extensión exploratoria de Machine Learning
-# al proyecto principal de GBM y Monte Carlo.
-#
-# La idea NO es construir una estrategia de trading ni afirmar capacidad
-# predictiva financiera fuerte. El objetivo es comparar un modelo
-# supervisado simple con modelos base:
-#
-#   1. Random Walk one-step
-#   2. GBM expected return
-#   3. Random Forest
-#
-# La evaluación es one-step ahead:
-#
-#   Se predice el retorno logarítmico del día siguiente usando
-#   información histórica disponible hasta el día actual.
-#
-# Esto es distinto a una simulación libre de 252 días como en el GBM
-# Monte Carlo. Por eso, esta sección debe interpretarse como una
-# extensión computacional comparativa.
+"""
+Comparación one-step entre modelos simples y Random Forest.
 
-
+Se predice el retorno logarítmico del día siguiente usando variables
+construidas a partir de retornos pasados. La comparación se hace contra
+un Random Walk y contra el retorno esperado estimado desde el GBM.
+"""
 from pathlib import Path
 
 import numpy as np
@@ -33,10 +14,6 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-
-# ============================================================
-# Configuración general
-# ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -51,10 +28,6 @@ TABLES_DIR.mkdir(parents=True, exist_ok=True)
 TEST_SIZE = 252
 RANDOM_SEED = 42
 
-
-# ============================================================
-# Funciones auxiliares
-# ============================================================
 
 def load_price_data(path):
     """
@@ -213,14 +186,8 @@ def compute_metrics(real_returns, predicted_returns, real_prices, predicted_pric
     }
 
 
-# ============================================================
-# Programa principal
-# ============================================================
-
 def main():
-    # --------------------------------------------------------
-    # 1. Cargar datos y construir features
-    # --------------------------------------------------------
+    # Datos y variables
 
     price_data = load_price_data(DATA_PATH)
     ml_data, feature_cols = create_features(price_data)
@@ -228,9 +195,7 @@ def main():
     if len(ml_data) <= TEST_SIZE:
         raise ValueError("No hay suficientes datos para separar 252 observaciones de test.")
 
-    # --------------------------------------------------------
-    # 2. Separar train/test de forma temporal
-    # --------------------------------------------------------
+    # Separación temporal
 
     train_data = ml_data.iloc[:-TEST_SIZE].copy()
     test_data = ml_data.iloc[-TEST_SIZE:].copy()
@@ -247,9 +212,7 @@ def main():
     previous_real_prices = test_data["price"].to_numpy()
     real_next_prices = previous_real_prices * np.exp(y_test)
 
-    # --------------------------------------------------------
-    # 3. Modelo base: Random Walk one-step
-    # --------------------------------------------------------
+    # Random Walk one-step
     #
     # Random Walk one-step equivale a predecir retorno cero:
     #
@@ -262,9 +225,7 @@ def main():
     rw_pred_returns = np.zeros_like(y_test)
     rw_pred_prices = reconstruct_one_step_prices(previous_real_prices, rw_pred_returns)
 
-    # --------------------------------------------------------
-    # 4. Modelo base: GBM expected return
-    # --------------------------------------------------------
+    # GBM expected return
 
     train_prices_for_gbm = train_data["price"].to_numpy()
 
@@ -275,9 +236,7 @@ def main():
     gbm_pred_returns = np.full_like(y_test, fill_value=gbm_expected_return)
     gbm_pred_prices = reconstruct_one_step_prices(previous_real_prices, gbm_pred_returns)
 
-    # --------------------------------------------------------
-    # 5. Modelo ML: Random Forest
-    # --------------------------------------------------------
+    # Random Forest
 
     rf_model = RandomForestRegressor(
         n_estimators=300,
@@ -292,9 +251,7 @@ def main():
     rf_pred_returns = rf_model.predict(X_test)
     rf_pred_prices = reconstruct_one_step_prices(previous_real_prices, rf_pred_returns)
 
-    # --------------------------------------------------------
-    # 6. Calcular métricas
-    # --------------------------------------------------------
+    # Métricas
 
     metrics = []
 
@@ -339,9 +296,7 @@ def main():
     metrics_path = TABLES_DIR / "ml_model_metrics.csv"
     metrics_df.to_csv(metrics_path, index=False)
 
-    # --------------------------------------------------------
-    # 7. Guardar predicciones
-    # --------------------------------------------------------
+    # Guardar resultados
 
     predictions_df = pd.DataFrame(
         {
@@ -361,9 +316,7 @@ def main():
     predictions_path = TABLES_DIR / "ml_predictions.csv"
     predictions_df.to_csv(predictions_path, index=False)
 
-    # --------------------------------------------------------
-    # 8. Gráfico de precios one-step
-    # --------------------------------------------------------
+    # Gráfico de precios
 
     fig, ax = plt.subplots(figsize=(11, 6))
 
@@ -411,9 +364,7 @@ def main():
     plt.savefig(price_figure_path, dpi=300)
     plt.close()
 
-    # --------------------------------------------------------
-    # 9. Gráfico de retornos reales vs predichos
-    # --------------------------------------------------------
+    # Gráfico de retornos
 
     fig, ax = plt.subplots(figsize=(11, 6))
 
@@ -447,9 +398,7 @@ def main():
     plt.savefig(returns_figure_path, dpi=300)
     plt.close()
 
-    # --------------------------------------------------------
-    # 10. Importancia de variables
-    # --------------------------------------------------------
+    # Importancia de variables
 
     importances = rf_model.feature_importances_
 
@@ -482,9 +431,7 @@ def main():
     plt.savefig(importance_figure_path, dpi=300)
     plt.close()
 
-    # --------------------------------------------------------
-    # 11. Mostrar resumen
-    # --------------------------------------------------------
+    # Resumen final
 
     print("Comparación ML base completada.")
     print()

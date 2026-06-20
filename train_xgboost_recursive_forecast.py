@@ -1,28 +1,10 @@
-# ============================================================
-# Pronóstico recursivo con XGBoost
-# Proyecto FIS205 - Modelamiento estocástico del precio del oro
-# ============================================================
-#
-# Este script compara Random Forest y XGBoost en modo recursivo.
-#
-# A diferencia de una predicción one-step, aquí el modelo parte desde
-# el precio inicial real del tramo de test y genera una trayectoria
-# completa hacia adelante usando sus propios retornos predichos.
-#
-# Esto permite una comparación más justa con GBM, ya que ambos modelos
-# generan una trayectoria libre desde una condición inicial.
-#
-# Modelos comparados:
-#
-#   1. Random Walk constante
-#   2. Random Forest recursivo desde 2009, 2018 y 2024
-#   3. XGBoost recursivo desde 2009, 2018 y 2024
-#
-# Advertencia:
-# Este análisis no corresponde a trading ni a predicción financiera real.
-# Es una comparación computacional de modelos generadores de trayectoria.
+"""
+Pronóstico recursivo con Random Forest y XGBoost.
 
-
+Los modelos se entrenan con distintas ventanas históricas y luego
+generan una trayectoria completa sobre el tramo de validación. Esto
+permite comparar su evolución con el precio real observado.
+"""
 from pathlib import Path
 from time import perf_counter
 
@@ -34,10 +16,6 @@ from sklearn.ensemble import RandomForestRegressor
 
 from xgboost import XGBRegressor
 
-
-# ============================================================
-# Configuración general
-# ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -53,10 +31,6 @@ START_YEARS = [2009, 2018, 2024]
 TEST_SIZE = 252
 RANDOM_SEED = 42
 
-
-# ============================================================
-# Funciones auxiliares
-# ============================================================
 
 def print_step(message):
     print()
@@ -285,16 +259,10 @@ def compute_trajectory_metrics(real_prices, predicted_prices):
     }
 
 
-# ============================================================
-# Programa principal
-# ============================================================
-
 def main():
     total_start = perf_counter()
 
-    # --------------------------------------------------------
-    # 1. Cargar datos y separar test fijo
-    # --------------------------------------------------------
+    # Datos y tramo de validación
 
     print_step("[1/7] Cargando datos y separando tramo de test...")
 
@@ -319,9 +287,7 @@ def main():
     print(f"Fecha final test: {test_data['date'].iloc[-1].date()}")
     print(f"Precio inicial S0: {S0:.4f} [US$/ozt]")
 
-    # --------------------------------------------------------
-    # 2. Baseline Random Walk constante
-    # --------------------------------------------------------
+    # Random Walk constante
 
     print_step("[2/7] Calculando Random Walk constante...")
 
@@ -340,9 +306,7 @@ def main():
         "Random Walk constante": rw_constant_path,
     }
 
-    # --------------------------------------------------------
-    # 3. Entrenar modelos por ventana y generar trayectorias
-    # --------------------------------------------------------
+    # Entrenamiento por ventanas
 
     print_step("[3/7] Entrenando RF y XGBoost por ventanas históricas...")
 
@@ -382,9 +346,7 @@ def main():
             print(f"Ventana {start_year}: omitida por retornos iniciales insuficientes.")
             continue
 
-        # -------------------------
         # Random Forest
-        # -------------------------
 
         print("Entrenando Random Forest...")
         t0 = perf_counter()
@@ -418,9 +380,7 @@ def main():
             }
         )
 
-        # -------------------------
         # XGBoost
-        # -------------------------
 
         print("Entrenando XGBoost...")
         print("Progreso interno mostrado cada 50 árboles.")
@@ -457,9 +417,7 @@ def main():
 
     results_df = pd.DataFrame(results)
 
-    # --------------------------------------------------------
-    # 4. Guardar tablas
-    # --------------------------------------------------------
+    # Guardar resultados
 
     print_step("[4/7] Guardando tablas...")
 
@@ -488,9 +446,7 @@ def main():
     paths_path = TABLES_DIR / "xgboost_recursive_forecast_paths.csv"
     paths_df.to_csv(paths_path, index=False)
 
-    # --------------------------------------------------------
-    # 5. Gráfico comparativo de trayectorias
-    # --------------------------------------------------------
+    # Gráfico de trayectorias
 
     print_step("[5/7] Generando gráfico de trayectorias...")
 
@@ -558,9 +514,7 @@ def main():
     plt.savefig(figure_path, dpi=300)
     plt.close()
 
-    # --------------------------------------------------------
-    # 6. Gráfico de MAPE
-    # --------------------------------------------------------
+    # Gráfico de error
 
     print_step("[6/7] Generando gráfico de MAPE...")
 
@@ -593,9 +547,7 @@ def main():
     plt.savefig(error_figure_path, dpi=300)
     plt.close()
 
-    # --------------------------------------------------------
-    # 7. Resumen final
-    # --------------------------------------------------------
+    # Resumen final
 
     print_step("[7/7] Resumen final")
 

@@ -5,9 +5,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-# ============================================================
-# 1.- RUTAS DEL PROYECTO
-# ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -21,9 +18,6 @@ FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 TABLES_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# ============================================================
-# 2.- CARGA DE DATOS Y PARÁMETROS
-# ============================================================
 
 def load_price_data(path: Path) -> pd.DataFrame:
     """
@@ -95,9 +89,6 @@ def load_gbm_parameters(path: Path) -> tuple[float, float]:
     return mu_daily, sigma_daily
 
 
-# ============================================================
-# 3.- SIMULACIÓN DEL MOVIMIENTO BROWNIANO GEOMÉTRICO
-# ============================================================
 
 def simulate_gbm(
     s0: float,
@@ -152,9 +143,6 @@ def simulate_gbm(
     return paths
 
 
-# ============================================================
-# 4.- VISUALIZACIONES
-# ============================================================
 
 def plot_monte_carlo_paths(paths: np.ndarray, n_to_plot: int = 100) -> None:
     """
@@ -218,9 +206,6 @@ def plot_final_price_distribution(paths: np.ndarray) -> None:
     plt.close()
 
 
-# ============================================================
-# 5.- EJECUCIÓN PRINCIPAL
-# ============================================================
 
 def main() -> None:
     df = load_price_data(DATA_PATH)
@@ -248,9 +233,7 @@ def main() -> None:
     plot_monte_carlo_paths(paths, n_to_plot=100)
     plot_mean_path(paths)
     plot_final_price_distribution(paths)
-    # ============================================================
-    # Resumen estadístico de la simulación
-    # ============================================================
+    # Resumen estadístico
 
     # No se guardan todas las trayectorias simuladas, porque para un número
     # grande de trayectorias el archivo resultante puede ser muy pesado.
